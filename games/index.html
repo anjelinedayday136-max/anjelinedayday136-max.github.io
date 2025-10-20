@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pong Game</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: radial-gradient(circle at center, #111 0%, #000 100%);
+    color: white;
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    margin: auto;
+    background: linear-gradient(180deg, #222, #111);
+    border: 4px solid #fff;
+    border-radius: 10px;
+  }
+  #ui {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+  }
+  button {
+    background: #fff;
+    color: #000;
+    border: none;
+    padding: 8px 14px;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: 0.3s;
+  }
+  button:hover {
+    background: #ffcc00;
+  }
+</style>
+</head>
+<body>
+<div id="ui">
+  <button id="startBtn">Start</button>
+  <button id="pauseBtn">Pause</button>
+  <button id="resetBtn">Reset</button>
+</div>
+<canvas id="pong"></canvas>
+
+<script>
+  const canvas = document.getElementById('pong');
+  const ctx = canvas.getContext('2d');
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  // Responsive canvas
+  function resizeCanvas() {
+    canvas.width = window.innerWidth * 0.8;
+    canvas.height = window.innerHeight * 0.7;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  // Game objects
+  const paddleWidth = 15, paddleHeight = 100;
+  let player = { x: 20, y: canvas.height / 2 - paddleHeight / 2, score: 0 };
+  let ai = { x: canvas.width - 35, y: canvas.height / 2 - paddleHeight / 2, score: 0 };
+  let ball = { x: canvas.width / 2, y: canvas.height / 2, r: 10, speedX: 5, speedY: 3 };
+  let running = false;
+  let upPressed = false, downPressed = false;
+
+  // Sound effects
+  const hitSound = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
+  const scoreSound = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+
+  // Draw functions
+  function drawRect(x, y, w, h, color = "#fff") {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+  }
+
+  function drawCircle(x, y, r, color = "#fff") {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawText(text, x, y) {
+    ctx.fillStyle = "#fff";
+    ctx.font = "24px Arial";
+    ctx.fillText(text, x, y);
+  }
+
+  // Game controls
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowUp' || e.key === 'w') upPressed = true;
+    if (e.key === 'ArrowDown' || e.key === 's') downPressed = true;
+  });
+  document.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowUp' || e.key === 'w') upPressed = false;
+    if (e.key === 'ArrowDown' || e.key === 's') downPressed = false;
+  });
+
+  function resetBall() {
+    ball.x = canvas.width / 2;
+    ball.y = canvas.height / 2;
+    ball.speedX *= -1;
+    ball.speedY = 3 * (Math.random() > 0.5 ? 1 : -1);
+  }
+
+  // Game logic
+  function update() {
+    if (!running) return;
+
+    // Move player
+    if (upPressed && player.y > 0) player.y -= 7;
+    if (downPressed && player.y + paddleHeight < canvas.height) player.y += 7;
+
+    // Move AI (simple tracking)
+    if (ai.y + paddleHeight / 2 < ball.y) ai.y += 5;
+    else if (ai.y + paddleHeight / 2 > ball.y) ai.y -= 5;
+
+    // Ball movement
+    ball.x += ball.speedX;
+    ball.y += ball.speedY;
+
+    // Collision with top/bottom
+    if (ball.y - ball.r < 0 || ball.y + ball.r > canvas.height) {
+      ball.speedY *= -1;
+      hitSound.play();
+    }
+
+    // Collision with paddles
+    if (ball.x - ball.r < player.x + paddleWidth && ball.y > player.y && ball.y < player.y + paddleHeight) {
+      ball.speedX *= -1;
+      hitSound.play();
+    }
+    if (ball.x + ball.r > ai.x && ball.y > ai.y && ball.y < ai.y + paddleHeight) {
+      ball.speedX *= -1;
+      hitSound.play();
+    }
+
+    // Score update
+    if (ball.x < 0) {
+      ai.score++;
+      scoreSound.play();
+      resetBall();
+    }
+    if (ball.x > canvas.width) {
+      player.score++;
+      scoreSound.play();
+      resetBall();
+    }
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawRect(0, 0, canvas.width, canvas.height, "#111");
+    drawRect(player.x, player.y, paddleWidth, paddleHeight);
+    drawRect(ai.x, ai.y, paddleWidth, paddleHeight);
+    drawCircle(ball.x, ball.y, ball.r);
+    drawText(`${player.score}`, canvas.width / 4, 50);
+    drawText(`${ai.score}`, (3 * canvas.width) / 4, 50);
+  }
+
+  function gameLoop() {
+    update();
+    render();
+    requestAnimationFrame(gameLoop);
+  }
+
+  // Buttons
+  startBtn.onclick = () => running = true;
+  pauseBtn.onclick = () => running = false;
+  resetBtn.onclick = () => {
+    player.score = ai.score = 0;
+    player.y = ai.y = canvas.height / 2 - paddleHeight / 2;
+    resetBall();
+    running = false;
+  };
+
+  gameLoop();
+</script>
+</body>
+</html>
